@@ -1,0 +1,107 @@
+---
+title: "IPCC AR6 WG1 Ch.6 Fig.19"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r init}
+suppressMessages(library(tidyverse))
+
+# Unused scenarios
+unused_scenarios <- c("SSP4-3.4-SPA4", "SSP4-6.0-SPA4", "SSP5-3.4-OS")
+```
+
+```{r country_mapping}
+country_mapping <- 
+	read.csv("country_mapping_ISO-5Regions.csv") %>% 
+	select(c(Country.Name, current.region.defs, NEW.AR6.Ch6.Fig6.4))
+
+colnames(country_mapping)
+
+country_mapping
+
+region_mapping <- 
+	country_mapping %>%
+	group_by(current.region.defs, NEW.AR6.Ch6.Fig6.4) %>%
+	summarise(count = n()) %>%
+	arrange(NEW.AR6.Ch6.Fig6.4)
+
+region_mapping
+
+region_mapping %>% 
+	select(!count) %>% 
+	summarise(count = n()) %>% 
+	arrange(desc(count))
+
+region_EA <- 
+	country_mapping %>% 
+	filter(current.region.defs == "Eastern Asia")
+
+region_EA %>% 
+	filter(NEW.AR6.Ch6.Fig6.4 == "East Asia")
+
+region_EA %>% 
+	filter(!NEW.AR6.Ch6.Fig6.4 == "East Asia")
+
+region_NA <- 
+	country_mapping %>% 
+	filter(current.region.defs == "North America")
+
+region_NA %>% 
+	filter(NEW.AR6.Ch6.Fig6.4 == "Central and South America")
+
+region_NA %>% 
+	filter(!NEW.AR6.Ch6.Fig6.4 == "Central and South America")
+
+region_SEA_DP <- 
+	country_mapping %>% 
+	filter(current.region.defs == "South-East Asia and Developing Pacific")
+
+region_SEA_DP %>% 
+	filter(NEW.AR6.Ch6.Fig6.4 == "East Asia")
+
+region_SEA_DP %>% 
+	filter(!NEW.AR6.Ch6.Fig6.4 == "East Asia")
+```
+
+```{r emissions-global-data}
+emissions_global <- 
+	read.csv("ar6-wg1-ch6-emissions-global-data.csv") %>% 
+	filter(!Scenario %in% unused_scenarios)
+
+cols_global <- colnames(emissions_global)
+cols_global
+
+unique(emissions_global$Model)
+
+unique(emissions_global$Scenario)
+
+unique(emissions_global$Region)
+
+unique(emissions_global$Variable)
+```
+
+```{r emissions-regional-data}
+# N.B.: Uses five regions
+emissions_regional <- 
+	read.csv("ar6-wg1-ch6-emissions-regional-data-5regions.csv") %>% 
+	filter(!Scenario %in% unused_scenarios)
+
+cols_regional <- colnames(emissions_regional)
+cols_regional
+
+unique(emissions_regional$Model)
+
+unique(emissions_regional$Scenario)
+
+unique(emissions_regional$Region)
+
+unique(emissions_regional$Variable)
+```
+
+```{r compare-columns}
+janitor::compare_df_cols(emissions_global, emissions_regional) %>% 
+	filter(is.na(emissions_regional))
+```
+
