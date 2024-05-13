@@ -5,19 +5,32 @@ editor_options:
   chunk_output_type: inline
 ---
 
+## Initial steps
+
+Add required libraries and tag scenarios to remove from datasets (per plots.py)
+
 ```{r init}
 suppressMessages(library(tidyverse))
+suppressMessages(library(sf))
+suppressMessages(library(tmap))
+suppressMessages(library(spData))
 
 # Unused scenarios
 unused_scenarios <- c("SSP4-3.4-SPA4", "SSP4-6.0-SPA4", "SSP5-3.4-OS")
 ```
 
+## Mapping countries to regions
+
+### Preliminary mapping
+
+From the file `country_mapping_ISO-5Regions.csv`, select only the three columns relevant per `plots.py` (adding “Country.Name” to check which countries are mapped where, and for making a map later).
+
+Scroll down for an explanation.
+
 ```{r country_mapping}
 country_mapping <- 
 	read.csv("country_mapping_ISO-5Regions.csv") %>% 
 	select(c(Country.Name, current.region.defs, NEW.AR6.Ch6.Fig6.4))
-
-colnames(country_mapping)
 
 country_mapping
 
@@ -25,12 +38,30 @@ region_mapping <-
 	country_mapping %>%
 	group_by(current.region.defs, NEW.AR6.Ch6.Fig6.4) %>%
 	summarise(count = n()) %>%
-	arrange(NEW.AR6.Ch6.Fig6.4)
+	arrange(current.region.defs)
 
 region_mapping
 
 region_mapping %>% 
 	select(!count) %>% 
+	summarise(count = n()) %>% 
+	arrange(desc(count))
+```
+
+**EXPLANATION** Above, you can see the `r nrow(region_mapping)` “current.region.defs” regions of various countries mapped to `r length(unique(region_mapping$NEW.AR6.Ch6.Fig6.4))` different “NEW.AR6.Ch6.Fig6.4” regions.
+Evidently, there are some overlaps.
+We explore these in the next section.
+
+### Choice of mapping “current.region.defs” to “NEW.AR6.Ch6.Fig6.4”
+
+First we see the breakdown of the number of countries in each of the `r length(unique(region_mapping$NEW.AR6.Ch6.Fig6.4))` “NEW.AR6.Ch6.Fig6.4” regions.
+
+Then we look at which countries are resonsible for there being no many-to-one mapping between the old and new region definitions.
+
+```{r region-splits}
+country_mapping %>% 
+	select(!current.region.defs) %>% 
+	group_by(NEW.AR6.Ch6.Fig6.4) %>% 
 	summarise(count = n()) %>% 
 	arrange(desc(count))
 
@@ -65,6 +96,33 @@ region_SEA_DP %>%
 	filter(!NEW.AR6.Ch6.Fig6.4 == "East Asia")
 ```
 
+## Regions on the map
+
+Before showing the regions on a map, we first see if the names of the countries match between the two databases.
+Below you can see that they don’t for several countries (and some regions, such as “French Southern and Antarctic Lands”, which are absent in the IPCC database).
+For example, “Russian Federation” is “Russia” in the IPCC database, while “eSwatini” is “Swaziland” etc.
+Nevertheless, the map below shows the distribution of regions.
+
+```{r world-map}
+world_ipcc <- 
+	left_join(world, country_mapping, 
+			  by = join_by(name_long == Country.Name))
+
+world_ipcc %>% 
+	select(name_long, NEW.AR6.Ch6.Fig6.4) %>% 
+	filter(is.na(NEW.AR6.Ch6.Fig6.4))
+
+tm_shape(world_ipcc) + 
+	tm_fill(col = "NEW.AR6.Ch6.Fig6.4") + 
+	tm_borders()
+```
+
+## Databases of global and regional emissions
+
+### Global emissions
+
+Below you can see the variables from the database, the number of rows (observations), the models used, the scenarios considered and the breakdown of variables.
+
 ```{r emissions-global-data}
 emissions_global <- 
 	read.csv("ar6-wg1-ch6-emissions-global-data.csv") %>% 
@@ -72,6 +130,8 @@ emissions_global <-
 
 cols_global <- colnames(emissions_global)
 cols_global
+
+nrow(emissions_global)
 
 unique(emissions_global$Model)
 
@@ -82,6 +142,10 @@ unique(emissions_global$Region)
 unique(emissions_global$Variable)
 ```
 
+### Regional emissions
+
+The same information as above is shown here, but for regional emissions from the file `ar6-wg1-ch6-emissions-regional-data-5regions.csv`.
+
 ```{r emissions-regional-data}
 # N.B.: Uses five regions
 emissions_regional <- 
@@ -90,6 +154,8 @@ emissions_regional <-
 
 cols_regional <- colnames(emissions_regional)
 cols_regional
+
+nrow(emissions_regional)
 
 unique(emissions_regional$Model)
 
@@ -100,8 +166,32 @@ unique(emissions_regional$Region)
 unique(emissions_regional$Variable)
 ```
 
+### Comparing global and regional databases
+
+While the database of global emissions has `r length(cols_global)` variables, that for regional emissions only has `r length(cols_regional)`.
+Below we see which variables are missing from the latter.
+
 ```{r compare-columns}
 janitor::compare_df_cols(emissions_global, emissions_regional) %>% 
 	filter(is.na(emissions_regional))
+```
+
+### Comparing two CSV files of regional data
+
+The IPCC has provided two seemingly identical databases with different names:
+`ar6-wg1-ch6-emissions-regional-data-5regions.csv` and `ar6-wg1-ch6-emissions-regional-data.csv`.
+Initially, it seemed like the latter had more granular information about the regions (perhaps mapped to “current.region.defs”), but this is not the case: it has the same region names as the other file.
+Further exploration shows some differences between the two files, as shown below.
+
+```{r compare-regional-csv-files}
+emissions_current_regions <- 
+	read.csv("ar6-wg1-ch6-emissions-regional-data.csv") %>% 
+	filter(!Scenario %in% unused_scenarios) 
+# %>% 
+# 	rename(Current_Region = Region)
+
+unique(emissions_current_regions$Region)
+
+summary(arsenal::comparedf(emissions_current_regions, emissions_regional))
 ```
 
