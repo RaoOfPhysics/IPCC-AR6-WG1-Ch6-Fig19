@@ -194,4 +194,131 @@ unique(emissions_current_regions$Region)
 
 summary(arsenal::comparedf(emissions_current_regions, emissions_regional))
 ```
+## Comparing emission types
+
+Based on the below graph (and the ones in the sections below), it appears that the emissions recorded by just the name of the chemical are the aggregate value of the individual contributing factors.
+
+```{r emission-types}
+emissions_regional %>% 
+	filter(grepl("CH4", Variable)) %>% 
+	filter(Region == "Africa and Middle East") %>% 
+	filter(Model == "AIM") %>% 
+	filter(grepl("LowNTCF", Scenario)) %>% 
+	select(!Model) %>% 
+	select(!Scenario) %>% 
+	select(!Region) %>% 
+	select(!Unit) %>% 
+	rename_with(~ str_remove(., "X"), everything()) %>% 
+	pivot_longer(
+		cols = "1850":"2100",
+		names_to = "year",
+		values_to = "count"
+	) %>% 
+	mutate(year = as.Date(year, format = "%Y")) %>% 
+	mutate(year = as.numeric(format(year, "%Y"))) %>% 
+	filter(year >= 2020) %>% 
+	#select(!year) %>% 
+	ggplot() + 
+	geom_col(aes(count, fct_reorder(Variable, count))) + 
+	facet_grid(cols = vars(year))
+```
+
+
+## Reproduction of graphics
+
+First we look at methane emissions in Africa and the Middle East, to compare with the top-left plot from the [original figure](https://www.ipcc.ch/report/ar6/wg1/downloads/figures/IPCC_AR6_WGI_Figure_6_19.png).
+
+```{r methane-ame, warning = FALSE}
+emissions_regional %>% 
+	filter(Variable == "Emissions|CH4") %>% 
+	select(!Variable) %>% 
+	filter(Region == "Africa and Middle East") %>% 
+	select(!Region) %>% 
+	select(!Unit) %>%  
+	unite(Model_Scenario, c("Model", "Scenario")) %>% 
+	rename_with(~ str_remove(., "X"), everything()) %>% 
+	pivot_longer(
+		cols = "1850":"2100",
+		names_to = "year",
+		values_to = "count"
+	) %>% 
+	mutate(year = as.Date(year, format = "%Y")) %>% 
+	mutate(year = as.numeric(format(year, "%Y"))) %>%
+	ggplot() +
+	geom_point(aes(x = year, y = count, colour = Model_Scenario)) +
+	geom_line(aes(x = year, y = count, colour = Model_Scenario)) 
+```
+
+Then we look at the RCP-only data, which matches with the grey area in the original figure. It appears that for each year, the minimum and maximum of all four datasets is used to plot the boundaries of the grey area.
+
+```{r methane-ame-rcp-only, warning = FALSE}
+emissions_regional %>% 
+	filter(Variable == "Emissions|CH4") %>% 
+	select(!Variable) %>% 
+	filter(Region == "Africa and Middle East") %>% 
+	select(!Region) %>% 
+	select(!Unit) %>%  
+	unite(Model_Scenario, c("Model", "Scenario")) %>% 
+	rename_with(~ str_remove(., "X"), everything()) %>% 
+	pivot_longer(
+		cols = "1850":"2100",
+		names_to = "year",
+		values_to = "count"
+	) %>% 
+	filter(grepl("RCP", Model_Scenario)) %>% 
+	mutate(year = as.Date(year, format = "%Y")) %>% 
+	mutate(year = as.numeric(format(year, "%Y"))) %>%
+	ggplot() +
+	geom_point(aes(x = year, y = count, colour = Model_Scenario)) +
+	geom_line(aes(x = year, y = count, colour = Model_Scenario)) 
+```
+
+Below is the faceted breakdown of all emissions by region.
+N.B.: Where the original plot shows data for “NMVOC”, it comes from the value of ”Emissions|VOC” in the dataset.
+Also note that I cannot get the order of the gases to match the original plot (yet).
+The labelling also needs some work, but the plotting itself seems to be OK.
+
+```{r all-emissions-faceted, warning = FALSE}
+emissions_type <- c("Emissions|CH4"
+				  , "Emissions|BC"
+				  , "Emissions|Sulfur"
+				  , "Emissions|CO"
+				  , "Emissions|NH3"
+				  , "Emissions|VOC"
+				  , "Emissions|NOx"
+				  , "Emissions|OC"
+					)
+
+emissions_regional %>% 
+	filter(Variable %in% emissions_type) %>% 
+	mutate(Variable = as.factor(Variable)) %>% 
+	select(!Unit) %>%  
+	unite(Model_Scenario, c("Model", "Scenario")) %>% 
+	rename_with(~ str_remove(., "X"), everything()) %>% 
+	pivot_longer(
+		cols = "1850":"2100",
+		names_to = "year",
+		values_to = "count"
+	) %>% 
+	mutate(year = as.Date(year, format = "%Y")) %>% 
+	mutate(year = as.numeric(format(year, "%Y"))) %>%
+	ggplot() +
+	geom_point(aes(x = year, y = count, colour = Model_Scenario)) +
+	geom_line(aes(x = year, y = count, colour = Model_Scenario)) +
+	facet_grid(rows = vars(Variable), cols = vars(Region), scales = "free_y")
+
+
+# mutate(Variable = fct_relevel(Variable),
+# 		   levels = c("Emissions|CH4"
+# 		   		    , "Emissions|BC"
+# 		   		    , "Emissions|OC"
+# 		   		    , "Emissions|Sulfur"
+# 		   		    , "Emissions|NOx"
+# 		   		    , "Emissions|CO"
+# 		   		    , "Emissions|VOC"
+# 		   		    , "Emissions|NH3"
+# 		   		    ))
+	
+```
+
 
